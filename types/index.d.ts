@@ -4,7 +4,7 @@ export enum PurchaseState {
   PurchasedSuccessfully = "PurchasedSuccessfully",
   Canceled = "Canceled",
   Refunded = "Refunded",
-  SubscriptionExpired = "SubscriptionExpired"
+  SubscriptionExpired = "SubscriptionExpired",
 }
 
 export interface ITransactionDetails {
@@ -40,6 +40,17 @@ export interface ISubscriptionDetails extends IProductDetails {
   introductoryPriceCycles: number;
 }
 
+export interface AcknowledgePurchase {
+  debugMessage: string;
+  responseCode: number;
+}
+
+export interface UpgradeSubscriptionDetails {
+  receiptData: string;
+  receiptSignature: string;
+  purchaseToken: string;
+}
+
 export default class InAppBilling {
   static open(): Promise<void>;
 
@@ -67,6 +78,14 @@ export default class InAppBilling {
     productId: string,
     developerPayload?: string
   ): Promise<ITransactionDetails>;
+
+  static acknowledgePurchase(
+    purchaseToken: string
+  ): Promise<AcknowledgePurchase>;
+
+  static upgradeSubscription(
+    productId: string
+  ): Promise<UpgradeSubscriptionDetails>;
 
   static isSubscribed(productId: string): Promise<boolean>;
 

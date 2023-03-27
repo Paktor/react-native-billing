@@ -1,7 +1,7 @@
 "use strict";
 
-const InAppBillingBridge = require("react-native").NativeModules
-  .InAppBillingBridge;
+const InAppBillingBridge =
+  require("react-native").NativeModules.InAppBillingBridge;
 
 class InAppBilling {
   static open() {
@@ -29,7 +29,19 @@ class InAppBilling {
   }
 
   static updateSubscription(oldProductIds, productId, developerPayload = null) {
-    return InAppBillingBridge.updateSubscription(oldProductIds, productId, developerPayload);
+    return InAppBillingBridge.updateSubscription(
+      oldProductIds,
+      productId,
+      developerPayload
+    );
+  }
+
+  static acknowledgePurchase(purchaseToken) {
+    return InAppBillingBridge.acknowledgePurchase(purchaseToken);
+  }
+
+  static upgradeSubscription(productId) {
+    return InAppBillingBridge.isSubscribed(productId);
   }
 
   static isSubscribed(productId) {
@@ -58,14 +70,14 @@ class InAppBilling {
 
   static getProductDetails(productId) {
     return InAppBillingBridge.getProductDetails([productId])
-      .then(arr => {
+      .then((arr) => {
         if (arr != null && arr.length > 0) {
           return Promise.resolve(arr[0]);
         } else {
           return Promise.reject("Could not find details.");
         }
       })
-      .catch(error => {
+      .catch((error) => {
         return Promise.reject(error);
       });
   }
@@ -84,14 +96,14 @@ class InAppBilling {
 
   static getSubscriptionDetails(productId) {
     return InAppBillingBridge.getSubscriptionDetails([productId])
-      .then(arr => {
+      .then((arr) => {
         if (arr != null && arr.length > 0) {
           return Promise.resolve(arr[0]);
         } else {
           return Promise.reject("Could not find details.");
         }
       })
-      .catch(error => {
+      .catch((error) => {
         return Promise.reject(error);
       });
   }

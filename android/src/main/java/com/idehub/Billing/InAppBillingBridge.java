@@ -19,6 +19,21 @@ import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 
+import com.android.billingclient.api.AcknowledgePurchaseParams;
+import com.android.billingclient.api.AcknowledgePurchaseResponseListener;
+import com.android.billingclient.api.BillingClientStateListener;
+import com.android.billingclient.api.BillingFlowParams;
+import com.android.billingclient.api.BillingResult;
+import com.android.billingclient.api.ProductDetails;
+import com.android.billingclient.api.ProductDetailsResponseListener;
+import com.android.billingclient.api.Purchase;
+import com.android.billingclient.api.PurchaseHistoryRecord;
+import com.android.billingclient.api.PurchaseHistoryResponseListener;
+import com.android.billingclient.api.PurchasesResponseListener;
+import com.android.billingclient.api.PurchasesUpdatedListener;
+import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.QueryPurchasesParams;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -145,6 +160,105 @@ public class InAppBillingBridge extends ReactContextBaseJavaModule implements Ac
         }
     }
 
+    private PurchasesUpdatedListener purchasesUpdatedListener = new PurchasesUpdatedListener() {
+        @Override
+        public void onPurchasesUpdated(BillingResult billingResult, List<Purchase> purchases) {
+            // To be implemented in a later section.
+            if (billClientPromiseCache.containsKey("upgradeSubscription")) {
+                WritableArray arr = Arguments.createArray();
+                for (Purchase item: purchases) {
+                    WritableMap map = Arguments.createMap();
+                    map.putString("receiptSignature", item.getSignature());
+                    map.putString("receiptData", item.getOriginalJson());
+                    map.putString("purchaseToken", item.getPurchaseToken());
+                    arr.pushMap(map);
+                }
+                billClientPromiseCache.get("upgradeSubscription").resolve(arr);
+                billingClient.endConnection();
+            }
+
+        }
+    };
+
+    @ReactMethod
+    private void acknowledgePurchase(String purchaseToken, Promise promise) {
+        ensureConnect(() -> {
+            AcknowledgePurchaseParams acknowledgePurchaseParams =
+                    AcknowledgePurchaseParams.newBuilder().setPurchaseToken(
+                            purchaseToken
+                    ).build();
+            billingClient.acknowledgePurchase(acknowledgePurchaseParams, new AcknowledgePurchaseResponseListener() {
+                @Override
+                public void onAcknowledgePurchaseResponse(@NonNull BillingResult billingResult) {
+                    WritableMap map = Arguments.createMap();
+                    map.putString("debugMessage", billingResult.getDebugMessage());
+                    map.putInt("responseCode", billingResult.getResponseCode());
+                    promise.resolve(map);
+                    billingClient.endConnection();
+                }
+            });
+
+        });
+    }
+
+    @Nullable
+    private ProductDetails getProductDetailByProductId(String productId) {
+        for (ProductDetails productDetails: allProductDetails) {
+            if (productDetails.getProductId().equals(productId)) {
+                return productDetails;
+            }
+        }
+        return null;
+    }
+
+    @ReactMethod
+    public void upgradeSubscription(String newProductId, Promise promise) {
+        ensureConnect(()-> billingClient.queryPurchasesAsync(QueryPurchasesParams.newBuilder().setProductType(BillingClient.ProductType.SUBS).build(), new PurchasesResponseListener() {
+                    @Override
+                    public void onQueryPurchasesResponse(@NonNull BillingResult billingResult, @NonNull List<Purchase> list) {
+                        Purchase purchase = list.get(0);
+                        if (purchase != null) {
+                            ProductDetails newProductDetails = getProductDetailByProductId(newProductId);
+                            billClientPromiseCache.put("upgradeSubscription", promise);
+                            BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
+                                    .setProductDetailsParamsList(
+                                            ImmutableList.of(
+                                                    BillingFlowParams.ProductDetailsParams.newBuilder()
+                                                            .setProductDetails(newProductDetails)
+                                                            .setOfferToken(newProductDetails.getSubscriptionOfferDetails().get(0).getOfferToken())
+                                                            .build()))
+                                    .setSubscriptionUpdateParams(
+                                            BillingFlowParams.SubscriptionUpdateParams.newBuilder()
+                                                    .setOldPurchaseToken(purchase.getPurchaseToken())
+                                                    .setReplaceProrationMode(BillingFlowParams.ProrationMode.IMMEDIATE_AND_CHARGE_PRORATED_PRICE)
+                                                    .build())
+                                    .build();
+                            billingClient.launchBillingFlow(getCurrentActivity(), billingFlowParams);
+                        }
+                    };
+                })
+        );
+    }
+
+    public void ensureConnect(final Runnable runnable) {
+        if (billingClient != null && billingClient.isReady()) {
+            runnable.run();
+        } else {
+            billingClient = BillingClient.newBuilder(_reactContext).setListener(purchasesUpdatedListener).enablePendingPurchases().build();
+            billingClient.startConnection(new BillingClientStateListener() {
+                @Override
+                public void onBillingServiceDisconnected() {
+
+                }
+
+                @Override
+                public void onBillingSetupFinished(@NonNull BillingResult billingResult) {
+                    runnable.run();
+                }
+            });
+        }
+    }
+    
     @ReactMethod
     public void consumePurchase(final String productId, final Promise promise) {
         if (bp != null) {

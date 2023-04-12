@@ -4,11 +4,13 @@ import android.app.Activity;
 import android.content.Intent;
 import android.util.Log;
 
+import com.android.billingclient.api.BillingClient;
 import com.anjlab.android.iab.v3.BillingProcessor;
 import com.anjlab.android.iab.v3.SkuDetails;
 import com.anjlab.android.iab.v3.TransactionDetails;
 import com.anjlab.android.iab.v3.PurchaseData;
 
+import com.facebook.common.internal.ImmutableList;
 import com.facebook.react.bridge.ActivityEventListener;
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.Promise;
@@ -34,6 +36,9 @@ import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
 import com.android.billingclient.api.QueryPurchasesParams;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -46,6 +51,7 @@ public class InAppBillingBridge extends ReactContextBaseJavaModule implements Ac
     Boolean mShortCircuit = false;
     static final String LOG_TAG = "rnbilling";
 
+    BillingClient billingClient = null;
     public InAppBillingBridge(ReactApplicationContext reactContext, String licenseKey) {
         super(reactContext);
         _reactContext = reactContext;
@@ -164,7 +170,7 @@ public class InAppBillingBridge extends ReactContextBaseJavaModule implements Ac
         @Override
         public void onPurchasesUpdated(BillingResult billingResult, List<Purchase> purchases) {
             // To be implemented in a later section.
-            if (billClientPromiseCache.containsKey("upgradeSubscription")) {
+            if (mPromiseCache.containsKey("upgradeSubscription")) {
                 WritableArray arr = Arguments.createArray();
                 for (Purchase item: purchases) {
                     WritableMap map = Arguments.createMap();
@@ -173,7 +179,7 @@ public class InAppBillingBridge extends ReactContextBaseJavaModule implements Ac
                     map.putString("purchaseToken", item.getPurchaseToken());
                     arr.pushMap(map);
                 }
-                billClientPromiseCache.get("upgradeSubscription").resolve(arr);
+                mPromiseCache.get("upgradeSubscription").resolve(arr);
                 billingClient.endConnection();
             }
 
@@ -181,7 +187,7 @@ public class InAppBillingBridge extends ReactContextBaseJavaModule implements Ac
     };
 
     @ReactMethod
-    private void acknowledgePurchase(String purchaseToken, Promise promise) {
+    private void acknowledgePurchase(String purchaseToken, final Promise promise) {
         ensureConnect(() -> {
             AcknowledgePurchaseParams acknowledgePurchaseParams =
                     AcknowledgePurchaseParams.newBuilder().setPurchaseToken(
@@ -203,11 +209,24 @@ public class InAppBillingBridge extends ReactContextBaseJavaModule implements Ac
 
     @Nullable
     private ProductDetails getProductDetailByProductId(String productId) {
-        for (ProductDetails productDetails: allProductDetails) {
-            if (productDetails.getProductId().equals(productId)) {
-                return productDetails;
+        ArrayList<QueryProductDetailsParams.Product> productList = new ArrayList<>();
+        productList.add(
+                QueryProductDetailsParams.Product.newBuilder()
+                        .setProductId(productId)
+                        .setProductType(BillingClient.ProductType.SUBS)
+                        .build()
+        );
+
+        QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
+                .setProductList(productList)
+                .build();
+
+        billingClient.queryProductDetailsAsync(params, new ProductDetailsResponseListener() {
+            public void onProductDetailsResponse(BillingResult billingResult, List<ProductDetails> productDetailsList) {
+                // handle response
             }
-        }
+        });
+
         return null;
     }
 
@@ -219,7 +238,7 @@ public class InAppBillingBridge extends ReactContextBaseJavaModule implements Ac
                         Purchase purchase = list.get(0);
                         if (purchase != null) {
                             ProductDetails newProductDetails = getProductDetailByProductId(newProductId);
-                            billClientPromiseCache.put("upgradeSubscription", promise);
+                            mPromiseCache.put("upgradeSubscription", promise);
                             BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
                                     .setProductDetailsParamsList(
                                             ImmutableList.of(

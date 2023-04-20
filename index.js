@@ -41,7 +41,7 @@ class InAppBilling {
   }
 
   static upgradeSubscription(productId) {
-    return InAppBillingBridge.isSubscribed(productId);
+    return InAppBillingBridge.upgradeSubscription(productId);
   }
 
   static isSubscribed(productId) {

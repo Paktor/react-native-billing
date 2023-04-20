@@ -43,6 +43,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 
 public class InAppBillingBridge extends ReactContextBaseJavaModule implements ActivityEventListener, BillingProcessor.IBillingHandler {
     ReactApplicationContext _reactContext;
@@ -220,14 +221,23 @@ public class InAppBillingBridge extends ReactContextBaseJavaModule implements Ac
         QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
                 .setProductList(productList)
                 .build();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final ProductDetails[] result = new ProductDetails[]{null};
 
         billingClient.queryProductDetailsAsync(params, new ProductDetailsResponseListener() {
             public void onProductDetailsResponse(BillingResult billingResult, List<ProductDetails> productDetailsList) {
-                // handle response
+                result[0] = productDetailsList.size() > 0 ? productDetailsList.get(0) : null;
+                latch.countDown();
             }
         });
 
-        return null;
+        try {
+            latch.wait();
+        } catch (InterruptedException ex) {
+
+        }
+
+        return result[0];
     }
 
     @ReactMethod

@@ -1,3 +1,5 @@
+Fork from: https://github.com/Gary-KK/react-native-billing & https://github.com/ashlyWeiting/react-native-billing
+
 # InApp Billing for Android [![npm version](https://img.shields.io/npm/v/react-native-billing.svg)](https://www.npmjs.com/package/react-native-billing) [![Build Status](https://travis-ci.org/idehub/react-native-billing.svg?branch=master)](https://travis-ci.org/idehub/react-native-billing)
 
 **React Native Billing** is built to provide an easy interface to InApp Billing on **Android**, accomplished by wrapping [anjlab's InApp Billing library](https://github.com/anjlab/android-inapp-billing-v3).
